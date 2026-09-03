@@ -150,3 +150,10 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This sample code is licensed under the MIT-0 License. See the LICENSE file.
+
+## Generative AI disclosure
+
+Generative AI (Anthropic Claude, via Claude Code) was used to help build, test, and document
+this solution. All AI-assisted output was reviewed and validated by a human before inclusion —
+including `cdk synth`/`cdk-nag` and unit-test runs, an adversarial correctness review of the
+Athena query and pricing data, and verification of deployment in a test account.

@@ -411,25 +411,11 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
       },    
     });
 
-    // Pricing fact tables
-    // ============================================
-    //
-    // Replaces the inline CASE-over-IATA-prefix regional matching and hardcoded pricing that
-    // used to live in the chargeback query (lib/chargeback-athena-sql.sql) with two tiny,
-    // version-able Glue EXTERNAL tables the query JOINs against:
-    //
-    //   cf_edge_location_region  — IATA edge-prefix -> region_key mapping
-    //   cf_region_pricing        — per-region price facts (DTO $/GB, request $/10k, tier)
-    //
-    // Both the region grouping AND the prices are now pure data: re-pricing a region or
-    // adding an edge prefix is a CSV edit + `cdk deploy`, never a query rewrite. The `tier`
-    // column (all rows 'first' today) leaves room for future tiered/volume pricing as a data
-    // add, not a schema change. Both tables are tiny and static — no partition projection.
-    //
-    // Backing CSVs ship from repo dir `pricing-data/` and deploy to
-    // s3://<logLandingBucket>/pricing/ (see the deploy-pricing-data BucketDeployment below). Each CSV is read with
-    // LazySimpleSerDe (field.delim ',') and 'skip.header.line.count'='1' so the header row is
-    // not ingested as data.
+    // Pricing fact tables — replace the chargeback query's inline CASE/hardcoded pricing with two
+    // version-able Glue EXTERNAL tables it JOINs against (edge-prefix->region, and per-region
+    // prices). Re-price/add an edge = CSV edit + `cdk deploy`, no query rewrite. Backing CSVs ship
+    // from pricing-data/ to s3://<logLandingBucket>/pricing/ (see deploy-pricing-data below); read
+    // with LazySimpleSerDe (field.delim ',') + skip.header.line.count '1'.
 
     const pricingPrefix = 'pricing';
 
@@ -511,18 +497,9 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
       prune: false,
     });
 
-    // ============================================
-    // cdk-nag suppressions
-    // ============================================
-    //
-    // This is a chargeback-logging DEMO/sample stack. The findings below are pre-existing
-    // characteristics of the sample (permissive demo API, legacy OAI, un-logged demo buckets)
-    // or are framework-generated (the CDK BucketDeployment copy handler). Each waiver is
-    // scoped to a single resource with a justification.
-
-    // AwsSolutions-S1 — server access logging on the three demo buckets. The log-landing and
-    // waf-log buckets are themselves log sinks; enabling S3 server-access logging on demo
-    // buckets would spawn a recursive access-log bucket not warranted for this sample.
+    // cdk-nag suppressions — demo/sample stack. Findings are pre-existing sample characteristics
+    // or framework-generated (BucketDeployment handler); each waiver is resource-scoped with a
+    // justification below.
     const s1 = {
       id: 'AwsSolutions-S1',
       reason: 'Demo/sample stack; the CloudFront-logs and WAF-logs buckets are themselves log sinks and the SPA bucket serves static demo content — S3 server-access logging is out of scope for the sample and would add a recursive log bucket.',
@@ -531,9 +508,6 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
     suppress(waflogLandingBucket, [s1]);
     suppress(spaBucket, [s1]);
 
-    // AwsSolutions-CFR7 — the distribution uses the legacy OriginAccessIdentity rather than an
-    // Origin Access Control. Migrating to OAC changes the origin wiring and is out of scope for
-    // this pricing-fact-table change; the demo intentionally keeps the documented OAI pattern.
     suppress(chargeBackdistribution, [
       {
         id: 'AwsSolutions-CFR7',
@@ -549,8 +523,6 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
       },
     ]);
 
-    // AwsSolutions-IAM4 — the two application Lambdas (regional API handler + Lambda@Edge) use
-    // the AWS-managed AWSLambdaBasicExecutionRole, which grants only CloudWatch Logs write.
     const iam4BasicExec = {
       id: 'AwsSolutions-IAM4',
       reason: 'AWS-managed AWSLambdaBasicExecutionRole grants only CloudWatch Logs write, which is the least privilege needed for the function to log; it is the CDK default for Lambda execution roles.',
@@ -559,9 +531,6 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
     suppress(chargeBackLambda, [iam4BasicExec], true);
     suppress(lambdaEdgeFunction, [iam4BasicExec], true);
 
-    // API Gateway demo endpoint — no auth, no request validation, no access/exec logging. This
-    // is a public demo endpoint sitting behind the CloudFront distribution to serve dynamic
-    // sample content; production auth/logging/validation are out of scope for the sample.
     suppress(
       chargeBackAPI,
       [
@@ -575,12 +544,8 @@ export class CloudfrontChargeBackLoggingStack extends Stack {
       true, // findings land on stage + method child resources
     );
 
-    // Framework-generated CDK BucketDeployment copy handler (shared singleton used by both the
-    // webpage and pricing-data deployments). Its runtime, managed policy, and wildcard S3
-    // actions/resources are generated by aws-cdk-lib to sync assets and are not under
-    // application control.
-    // Path is built from this.node.id (not a hardcoded stack name) so it resolves under any
-    // stack id — e.g. the 'MyTestStack' id used by the jest test.
+    // Framework-generated BucketDeployment copy handler. Path uses this.node.id (not a hardcoded
+    // stack name) so it resolves under any stack id, e.g. the jest test's 'MyTestStack'.
     const bucketDeploymentPath =
       `/${this.node.id}/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C`;
     suppressByPath(this, `${bucketDeploymentPath}/Resource`, [

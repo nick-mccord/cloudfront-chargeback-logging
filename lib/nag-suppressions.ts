@@ -1,21 +1,7 @@
 /**
- * Reusable cdk-nag suppression helper (TypeScript).
- *
- * Use this wrapper INSTEAD of calling `NagSuppressions` directly. It enforces the
- * one rule that makes suppressions safe: every waiver carries a non-empty,
- * human-readable reason. A suppression without a justification is a latent
- * incident — this helper refuses to create one.
- *
- * Usage:
- *   import { suppress } from './nag-suppressions';
- *   suppress(myBucket, [
- *     { id: 'AwsSolutions-S1', reason: 'Access logging not needed for ephemeral 24h artifact bucket.' },
- *   ]);
- *
- * Pair with the app-entry Aspect (error-level findings fail synth):
- *   import { Aspects } from 'aws-cdk-lib';
- *   import { AwsSolutionsChecks } from 'cdk-nag';
- *   Aspects.of(app).add(new AwsSolutionsChecks());   // verbose defaults on; error-level fails synth
+ * cdk-nag suppression helper. Use instead of `NagSuppressions` directly: it refuses any
+ * waiver without a real (>=15 char, non-placeholder) justification. Pair with the app-entry
+ * Aspect `Aspects.of(app).add(new AwsSolutionsChecks())` (error-level findings fail synth).
  */
 import { NagSuppressions } from 'cdk-nag';
 import type { IConstruct } from 'constructs';
@@ -49,28 +35,16 @@ function assertJustified(s: Suppression): void {
   }
 }
 
-/**
- * Suppress one or more cdk-nag findings on a specific construct, with an
- * enforced justification per entry. Prefer this over stack-wide suppressions —
- * scope each waiver as tightly as possible.
- */
+/** Suppress cdk-nag findings on a construct (justification enforced per entry). */
 export function suppress(construct: IConstruct, entries: Suppression[], applyToChildren = false): void {
   if (!entries?.length) throw new Error('suppress() called with no entries.');
   entries.forEach(assertJustified);
   NagSuppressions.addResourceSuppressions(construct, entries as any, applyToChildren);
 }
 
-/**
- * Path-based suppression for constructs created inside L3 constructs / helpers
- * where you don't hold the object reference (e.g. BucketDeployment's handler).
- * Same justification enforcement.
- */
+/** Path-based suppression for constructs you don't hold a reference to (e.g. BucketDeployment's handler). */
 export function suppressByPath(stack: IConstruct, path: string, entries: Suppression[]): void {
   if (!entries?.length) throw new Error('suppressByPath() called with no entries.');
   entries.forEach(assertJustified);
-  // NagSuppressions.addResourceSuppressionsByPath is a static on the stack's construct tree.
   (NagSuppressions as any).addResourceSuppressionsByPath(stack, path, entries);
 }
-
-// NOTE: There is intentionally NO "suppress everything" / wildcard helper.
-// Silencing without justification is the failure mode this file exists to prevent.
