@@ -14,10 +14,35 @@ This solution only focuses on the chargeback of Amazon CloudFront chargeback, se
 
 ![CloudFront ChargeBack Logging Architecture](images/cloudfront-chargeback-logging-architecture-diagram.png)
 
+## Data-driven regional pricing
+
+Regional matching and per-region prices are **not** embedded in the chargeback SQL. Instead, the
+deploy creates two small, version-able Glue tables in `chargeback_database` that the query JOINs
+against:
+
+| Table | Columns | Purpose |
+|-------|---------|---------|
+| `cf_edge_location_region` | `iata_prefix`, `region_key` | Maps a CloudFront edge IATA prefix (`SUBSTRING(x_edge_location, 1, 3)`) to a pricing region. |
+| `cf_region_pricing` | `region_key`, `region_name`, `dto_price_per_gb`, `request_price_per_10k`, `tier` | Per-region data-transfer-out $/GB and request $/10,000, plus a human-readable region name. |
+
+Both tables are backed by CSVs under [`pricing-data/`](pricing-data/) and deployed to
+`s3://<logsBucket>/pricing/` by the CDK stack. `lib/chargeback-athena-sql.sql` JOINs these tables
+instead of hardcoding a `CASE` wall of IATA prefixes and prices.
+
+**To re-price a region or add an edge location, edit the CSVs in `pricing-data/` and run
+`cdk deploy` — no SQL change is required.** Edge locations with no mapping row fall back to the
+`default` row's prices (and the `Unknown` region label). The `tier` column is `first` for every
+row today and leaves room for future tiered/volume pricing as a data change rather than a schema
+change.
+
+> The prices shipped in `pricing-data/region-pricing/region-pricing.csv` are example list prices.
+> Update them to reflect your actual CloudFront pricing (including any private-pricing discounts)
+> before relying on the output.
+
 ## Requirements
 
-- Node.js 18.x
-- AWS CDK 2.59.x
+- Node.js 20.x or later
+- AWS CDK 2.142.x or later
 - Configured AWS credentials
 
 
@@ -26,8 +51,8 @@ This solution only focuses on the chargeback of Amazon CloudFront chargeback, se
 1. Clone git repository and navigate to CDK project
 
 ```bash
-git clone https://github.com/aws-samples/amazon-cloudfront-chargeback-logging.git
-cd amazon-cloudfront-chargeback-logging
+git clone https://github.com/aws-samples/cloudfront-chargeback-logging.git
+cd cloudfront-chargeback-logging
 ```
 
 2. Install CDK
@@ -86,7 +111,7 @@ An alternative method for distributed testing would be using the [Distributed Lo
 an Amazon S3 output bucket for query results. There is a banner to walk you through 
 the setup, but more information can be found on the [Getting Started](https://docs.aws.amazon.com/athena/latest/ug/getting-started.html) page.
 
-5. Once you're able to query the `cf-logs-table` in the `chargeback_database`. The [`chargeback-athena-sql.sql`](chargeback-athena-sql.sql) can be used to create your aggregation table.
+5. Once you're able to query the `cf-logs-table` in the `chargeback_database`, the [`chargeback-athena-sql.sql`](lib/chargeback-athena-sql.sql) can be used to create your aggregation table. Additional exploratory queries (cache hit ratio, error counts) are in [`lib/additional-athena-queries.sql`](lib/additional-athena-queries.sql).
 
 [Athena Query Example](images/athena-query-example-output.png)
 
