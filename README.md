@@ -2,6 +2,8 @@
 
 The solution uses Amazon CloudFront to “chargeback” or allocate/identify CDN costs at a more granular level to better track spend by origin or behavior. The following cost aspects are tracked, on a per behavior basis, for the distribution based on CloudFront standard logs: data transfer out (DTO), requests, CloudFront function invocations, Lambda@Edge invocations, and data transfer out to origin.
 
+For background and a walkthrough of the approach, see the AWS blog post [Implementing granular cost analysis for multi-tenant CloudFront distributions](https://aws.amazon.com/blogs/networking-and-content-delivery/implementing-granular-cost-analysis-for-multi-tenant-cloudfront-distributions/).
+
 This solution ESTIMATES Lambda@Edge total cost by taking the average GB/second cost from the observed behavior of the solution and should be adjusted in the SQL code to reflect your costs more accuractely. For more accuracy you will need to aggregate CloudWatch logs in different Regional Edge Caches (RECs) to determine duration charges. More information on how this can be accomplished can be found [here](https://aws.amazon.com/blogs/networking-and-content-delivery/aggregating-lambdaedge-logs/).
 
 Data visualizations may vary for each customer usecase, but some sample visualization are provided here to extract tenant cost information into Amazon QuickSight.
@@ -155,5 +157,5 @@ This sample code is licensed under the MIT-0 License. See the LICENSE file.
 
 Generative AI (Anthropic Claude, via Claude Code) was used to help build, test, and document
 this solution. All AI-assisted output was reviewed and validated by a human before inclusion —
-including `cdk synth`/`cdk-nag` and unit-test runs, an adversarial correctness review of the
-Athena query and pricing data, and verification of deployment in a test account.
+including `cdk synth`/`cdk-nag` and unit-test runs, and verification of deployment in a test
+account.
